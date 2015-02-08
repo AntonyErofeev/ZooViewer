@@ -1,0 +1,49 @@
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/ http://maven.apache.org/xsd/component-1.1.2.xsd">
+
+    <id>ZooViewer</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <fileSets>
+        <fileSet>
+            <directory>${project.build.directory}/lib</directory>
+            <outputDirectory>/lib</outputDirectory>
+            <includes>
+                <include>*.jar</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/../src/main/resources/startup</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>**/*.bat</include>
+                <include>**/*.sh</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.build.directory}/../src/main/resources</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>log4j.properties</include>
+            </includes>
+        </fileSet>
+
+        <!-- A small hack to create empty logs directory -->
+        <fileSet>
+            <outputDirectory>/logs</outputDirectory>
+            <directory>${project.basedir}/target</directory>
+            <excludes>
+                <exclude>**/*</exclude>
+            </excludes>
+        </fileSet>
+    </fileSets>
+    <files>
+        <file>
+            <source>${project.build.directory}/${project.build.finalName}.jar</source>
+            <destName>${service.jar}</destName>
+        </file>
+    </files>
+</assembly>

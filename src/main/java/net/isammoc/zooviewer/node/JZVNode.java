@@ -51,8 +51,8 @@ import net.isammoc.zooviewer.model.ZVModelListener;
  * @author franck
  */
 public class JZVNode extends JPanel {
-    private static final Border BEVEL_LOWERED_BORDER = BorderFactory
-            .createBevelBorder(BevelBorder.LOWERED);
+
+    private static final Border BEVEL_LOWERED_BORDER = BorderFactory.createBevelBorder(BevelBorder.LOWERED);
 
     private static final String ADD_CHILD_NODE_KEY = "btn.add.child";
     private static final String UPDATE_NODE_KEY = "btn.update";
@@ -61,11 +61,9 @@ public class JZVNode extends JPanel {
     /** */
     private static final long serialVersionUID = 1L;
 
-    private static final ResourceBundle bundle = ResourceBundle
-            .getBundle(JZVNode.class.getCanonicalName());
+    private static final ResourceBundle bundle = ResourceBundle.getBundle(JZVNode.class.getCanonicalName());
 
-    private final TitledBorder titleBorder = BorderFactory
-            .createTitledBorder("-");
+    private final TitledBorder titleBorder = BorderFactory.createTitledBorder("-");
 
     private ZVNode[] nodes;
     private final ZVModel model;
