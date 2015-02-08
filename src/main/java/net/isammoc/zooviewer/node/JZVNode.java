@@ -14,36 +14,23 @@
  */
 package net.isammoc.zooviewer.node;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.util.ResourceBundle;
+import net.isammoc.zooviewer.model.ZVModel;
+import net.isammoc.zooviewer.model.ZVModelListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.swing.AbstractAction;
-import javax.swing.Action;
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.KeyStroke;
+import javax.swing.*;
 import javax.swing.border.BevelBorder;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
-
-import net.isammoc.zooviewer.model.ZVModel;
-import net.isammoc.zooviewer.model.ZVModelListener;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.beans.PropertyChangeListener;
+import java.util.ResourceBundle;
 
 /**
  * Editor panel for a node.
@@ -51,6 +38,8 @@ import net.isammoc.zooviewer.model.ZVModelListener;
  * @author franck
  */
 public class JZVNode extends JPanel {
+
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private static final Border BEVEL_LOWERED_BORDER = BorderFactory.createBevelBorder(BevelBorder.LOWERED);
 
@@ -87,12 +76,7 @@ public class JZVNode extends JPanel {
     private JPanel dataPanel = null;
     private JPanel newChildPanel = null;
 
-    private final PropertyChangeListener propertyListener = new PropertyChangeListener() {
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            updateView();
-        }
-    };
+    private final PropertyChangeListener propertyListener = evt -> updateView();
 
     /**
      * Constructs a new editor panel.
@@ -159,7 +143,7 @@ public class JZVNode extends JPanel {
     
             nodePanel.add(
                     getNewChildPanel(),
-                    new GridBagConstraints(0, row++, 5, 1, 1, 1,
+                    new GridBagConstraints(0, row, 5, 1, 1, 1,
                             GridBagConstraints.WEST, GridBagConstraints.BOTH,
                             new Insets(2, 2, 2, 2), 0, 0));
         }
@@ -253,13 +237,10 @@ public class JZVNode extends JPanel {
             addChildAction = new AbstractAction(actionCommand) {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.out.println("actionPerformed(): action = "
-                            + e.getActionCommand());
+                    log.info("actionPerformed(): action = "
+                        + e.getActionCommand());
                     if (checkAction()) {
-                        model.addNode(
-                                nodes[0].getPath() + "/"
-                                        + jtfChildName.getText(), taChildData
-                                        .getText().getBytes());
+                        model.addNode(nodes[0].getPath() + "/" + jtfChildName.getText(), taChildData.getText().getBytes());
                     }
                 }
 
@@ -277,7 +258,7 @@ public class JZVNode extends JPanel {
                         return false;
                     }
                     // No parent
-                    if (nodes == null || nodes.length != 1) {
+                    if (nodes.length != 1) {
                         JOptionPane.showMessageDialog(JZVNode.this,
                                 bundle.getString("dlg.error.addWithoutParent"),
                                 bundle.getString("dlg.error.title"),
@@ -305,11 +286,9 @@ public class JZVNode extends JPanel {
             updateAction = new AbstractAction(actionCommand) {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.out.println("actionPerformed(): action = "
-                            + e.getActionCommand());
+                    log.info("actionPerformed(): action = {}", e.getActionCommand());
                     if (checkAction()) {
-                        model.updateData(nodes[0].getPath(), taUpdate
-                                .getText().getBytes());
+                        model.updateData(nodes[0].getPath(), taUpdate.getText().getBytes());
                     }
                 }
 
@@ -319,7 +298,7 @@ public class JZVNode extends JPanel {
                         return false;
                     }
                     // No parent
-                    if (nodes == null || nodes.length != 1) {
+                    if (nodes.length != 1) {
                         JOptionPane.showMessageDialog(JZVNode.this, bundle
                                 .getString("dlg.error.updateWithoutParent"),
                                 bundle.getString("dlg.error.title"),
@@ -350,8 +329,8 @@ public class JZVNode extends JPanel {
             this.deleteAction = new AbstractAction(actionCommand) {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.out.println("actionPerformed(): action = "
-                            + e.getActionCommand());
+                    log.info("actionPerformed(): action = "
+                        + e.getActionCommand());
                     if (checkAction()) {
                         // Checks if several nodes will be deleted
                         if (nodes.length > 1) {
@@ -391,16 +370,14 @@ public class JZVNode extends JPanel {
      */
     public void setNodes(ZVNode[] nodes) {
         if (this.nodes != null) {
-            for (int i = 0; i < this.nodes.length; i++) {
-                this.nodes[i].removePropertyChangeListener(
-                        ZVNode.PROPERTY_EXISTS, this.propertyListener);
+            for (ZVNode node : this.nodes) {
+                node.removePropertyChangeListener(ZVNode.PROPERTY_EXISTS, this.propertyListener);
             }
         }
         this.nodes = nodes;
         if (this.nodes != null) {
-            for (int i = 0; i < this.nodes.length; i++) {
-                this.nodes[i].addPropertyChangeListener(ZVNode.PROPERTY_EXISTS,
-                        this.propertyListener);
+            for (ZVNode node : this.nodes) {
+                node.addPropertyChangeListener(ZVNode.PROPERTY_EXISTS, this.propertyListener);
             }
         }
         this.updateView();
@@ -428,25 +405,24 @@ public class JZVNode extends JPanel {
         jtfChildName.getDocument().addDocumentListener( new DocumentListener() {
             @Override
             public void removeUpdate(DocumentEvent e) {
-                System.out.println(".removeUpdate()");
+                log.info(".removeUpdate()");
                 enableAction(e);
             }
             @Override
             public void insertUpdate(DocumentEvent e) {
-                System.out.println(".insertUpdate()");
+                log.info(".insertUpdate()");
                 enableAction(e);
             }
             @Override
             public void changedUpdate(DocumentEvent e) {
-                System.out.println(".changedUpdate()");
+                log.info(".changedUpdate()");
                 enableAction(e);
             }
             private void enableAction(DocumentEvent e) {
                 int docLength = e.getDocument().getLength();
                 boolean enabled;
                 try {
-                    enabled = ( docLength > 0 )
-                        && !e.getDocument().getText(0, docLength).trim().equals("");
+                    enabled = ( docLength > 0 ) && !e.getDocument().getText(0, docLength).trim().equals("");
                     getAddChildAction().setEnabled( enabled  );
                 } catch (BadLocationException e1) {
                     // TODO Auto-generated catch block
@@ -464,8 +440,7 @@ public class JZVNode extends JPanel {
      * </p>
      */
     private void updateView() {
-        if (this.nodes == null || this.nodes.length > 1
-                || !this.nodes[0].exists()) {
+        if (this.nodes == null || this.nodes.length > 1 || !this.nodes[0].exists()) {
             this.titleBorder.setTitle("-");
             this.jzvStat.setStat(null);
             this.taUpdate.setText("");
@@ -477,8 +452,7 @@ public class JZVNode extends JPanel {
             this.titleBorder.setTitle(this.nodes[0].getPath());
             this.jzvStat.setStat(this.nodes[0].getStat());
             byte[] data = this.nodes[0].getData();
-            this.taUpdate.setText(new String(data == null ? "null".getBytes()
-                    : data));
+            this.taUpdate.setText(new String(data == null ? "null".getBytes() : data));
             this.taChildData.setText("");
             this.jbUpdate.setEnabled( !this.taUpdate.getText().trim().equals("") );
             this.jbNewChild.setEnabled( !this.jtfChildName.getText().trim().equals("") );
@@ -494,9 +468,8 @@ public class JZVNode extends JPanel {
         @Override
         public void nodeDeleted(ZVNode oldNode, int oldIndex) {
             if (nodes != null) {
-                for (int i = 0; i < nodes.length; i++) {
-                    if ((nodes[i] == oldNode)
-                            || (nodes[i] == model.getParent(oldNode))) {
+                for (ZVNode node : nodes) {
+                    if ((node == oldNode) || (node == model.getParent(oldNode))) {
                         updateView();
                         break;
                     }
@@ -508,8 +481,8 @@ public class JZVNode extends JPanel {
         public void nodeDataChanged(ZVNode node) {
             boolean updateView = false;
             if (nodes != null) {
-                for (int i = 0; i < nodes.length; i++) {
-                    if ((nodes[i] == node)) {
+                for (ZVNode node1 : nodes) {
+                    if (node1 == node) {
                         updateView = true;
                     }
                 }
@@ -523,8 +496,8 @@ public class JZVNode extends JPanel {
         public void nodeCreated(ZVNode newNode) {
             boolean updateView = false;
             if (nodes != null) {
-                for (int i = 0; i < nodes.length; i++) {
-                    if ((nodes[i] == newNode)) {
+                for (ZVNode node : nodes) {
+                    if (node == newNode) {
                         updateView = true;
                     }
                 }

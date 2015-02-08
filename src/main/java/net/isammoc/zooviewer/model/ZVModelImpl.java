@@ -14,28 +14,26 @@
  */
 package net.isammoc.zooviewer.model;
 
+import net.isammoc.zooviewer.node.ZVNode;
+import net.isammoc.zooviewer.node.ZVNodeImpl;
+import org.apache.zookeeper.AsyncCallback.ChildrenCallback;
+import org.apache.zookeeper.*;
+import org.apache.zookeeper.common.PathUtils;
+import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.swing.event.EventListenerList;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
-import javax.swing.event.EventListenerList;
-
-import net.isammoc.zooviewer.node.ZVNode;
-import net.isammoc.zooviewer.node.ZVNodeImpl;
-
-import org.apache.zookeeper.AsyncCallback.ChildrenCallback;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.common.PathUtils;
-import org.apache.zookeeper.data.Stat;
+import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 
 /**
  * Implementation of the ZooViewer model.
@@ -43,13 +41,19 @@ import org.apache.zookeeper.data.Stat;
  * @author franck
  */
 public class ZVModelImpl implements ZVModel {
-   
+
+    private final Logger log = LoggerFactory.getLogger(getClass());
+
     protected final EventListenerList listenerList = new EventListenerList();
+
     private final ZooKeeper zk;
-    private final ExecutorService watcherExecutor = Executors
-            .newSingleThreadExecutor();
-    private final Map<String, ZVNodeImpl> nodes = new HashMap<String, ZVNodeImpl>();
-    private final Map<ZVNodeImpl, List<ZVNodeImpl>> children = new HashMap<ZVNodeImpl, List<ZVNodeImpl>>();
+
+    private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
+
+    private final Map<String, ZVNodeImpl> nodes = new HashMap<>();
+
+    private final Map<ZVNodeImpl, List<ZVNodeImpl>> children = new HashMap<>();
+
     private final ZkWatcher watcher;
 
     private final class ZkWatcher implements Watcher {
@@ -58,49 +62,41 @@ public class ZVModelImpl implements ZVModel {
 
         @Override
         public void process(WatchedEvent event) {
-            System.out.println("[" + Thread.currentThread() + "event : "
-                    + event);
+            log.info("[{}] event : {}", Thread.currentThread(), event);
             switch (event.getType()) {
                 case None:
                     switch (event.getState()) {
                         case Disconnected:
                         case Expired:
-                            System.out.println("[" + Thread.currentThread()
-                                    + "Session has expired");
+                            log.info("[{}] Session has expired", Thread.currentThread());
                             synchronized (lock) {
                                 dead = true;
                                 lock.notifyAll();
                             }
                             break;
                         case SyncConnected:
-                            System.out.println("[" + Thread.currentThread()
-                                    + "Connected to the server");
+                            log.info("[{}] Connected to the server", Thread.currentThread());
                             synchronized (lock) {
                                 dead = false;
                                 lock.notifyAll();
-                                // populateView();
                             }
                             break;
                     }
                     zk.register(this);
                     break;
                 case NodeCreated:
-                    System.out.println("Node " + event.getPath() + " created");
-                    // FLE+
-                    // nodeDataChanged(event.getPath());
+                    log.info("Node {} created", event.getPath());
                     break;
                 case NodeChildrenChanged:
-                    System.out.println("Children changed for node "
-                            + event.getPath());
+                    log.info("Children changed for node {}", event.getPath());
                     populateChildren(event.getPath());
                     break;
                 case NodeDeleted:
-                    System.out.println("Node " + event.getPath() + " deleted");
+                    log.info("Node {} deleted", event.getPath());
                     nodeDeleted(event.getPath());
                     break;
                 case NodeDataChanged:
-                    System.out.println("Data changed for node "
-                            + event.getPath());
+                    log.info("Data changed for node {}", event.getPath());
                     nodeDataChanged(event.getPath());
                     break;
             }
@@ -112,19 +108,15 @@ public class ZVModelImpl implements ZVModel {
         this.zk = new ZooKeeper(connectString, 3000, this.watcher);
         // s this.watcherExecutor.execute(this.watcher);
 
-        System.out.println("[" + Thread.currentThread() + "] AFTER ZK INIT");
+        log.info("[{}] AFTER ZK INIT", Thread.currentThread());
         synchronized (watcher.lock) {
             while (watcher.dead) {
                 try {
-                    System.out.println("[" + Thread.currentThread()
-                            + "Awaiting lock notification");
+                    log.info("[{}] Awaiting lock notification", Thread.currentThread());
                     watcher.lock.wait();
-                    System.out.println("[" + Thread.currentThread()
-                            + "Lock notification, watcher.dead = "
-                            + watcher.dead);
+                    log.info("[{}] Lock notification, watcher.dead = {}",Thread.currentThread() ,watcher.dead);
                 } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
+                    log.error("=====> Interrupted while waiting for watcher lock.", e);
                 }
             }
         }
@@ -139,25 +131,24 @@ public class ZVModelImpl implements ZVModel {
      */
     @Override
     public void close() throws InterruptedException {
-        System.out.println("Closing ZooKeeper client...");
+        log.info("Closing ZooKeeper client...");
         zk.close();
         synchronized (watcher.lock) {
             watcher.dead = true;
             watcher.lock.notifyAll();
         }
-        System.out.println("Shutting down watcher...");
+        log.info("Shutting down watcher...");
         watcherExecutor.shutdown();
-        System.out.println("Removing listeners...");
-        ZVModelListener[] listeners = listenerList
-                .getListeners(ZVModelListener.class);
-        for (int i = 0; i < listeners.length; i++) {
-            listenerList.remove(ZVModelListener.class, listeners[i]);
+        log.info("Removing listeners...");
+        ZVModelListener[] listeners = listenerList.getListeners(ZVModelListener.class);
+        for (ZVModelListener listener : listeners) {
+            listenerList.remove(ZVModelListener.class, listener);
         }
 
-        System.out.println("Resetting models...");
+        log.info("Resetting models...");
         nodes.clear();
         children.clear();
-        System.out.println("Close done.");
+        log.info("Close done.");
     }
 
     /**
@@ -187,83 +178,71 @@ public class ZVModelImpl implements ZVModel {
             node.setData(zk.getData(path, watcher, stat));
             node.setStat(stat);
             fireNodeDataChanged(node);
-        } catch (KeeperException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (KeeperException | InterruptedException e) {
+            log.error("Error getting new node data.", e);
         }
     }
 
     /**
      * Populates the root in this model.
-     * @param path the node path
      */
     private synchronized void populateRoot() {
         if (nodes.get("/") == null) {
             try {
-                System.out.println("[" + Thread.currentThread()
-                        + "Populating root..");
+                log.info("[{}] Populating root..", Thread.currentThread());
                 Stat stat = new Stat();
-                ZVNodeImpl root = new ZVNodeImpl("/", zk.getData("/", watcher,
-                        stat));
+                ZVNodeImpl root = new ZVNodeImpl("/", zk.getData("/", watcher, stat));
                 root.setStat(stat);
                 nodes.put("/", root);
-                children.put(root, new ArrayList<ZVNodeImpl>());
+                children.put(root, new ArrayList<>());
                 fireNodeCreated(root);
                 populateChildren("/");
-            } catch (KeeperException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            } catch (KeeperException | InterruptedException e) {
+                log.error("Error populating root.", e);
             }
         }
     }
 
     /**
      * Populates the children of the specified path.
-     * @param path
+     * @param path path
      */
     private synchronized void populateChildren(String path) {
-        ChildrenCallback cb = new ChildrenCallback() {
-
-            @Override
-            public void processResult(int rc, String path, Object ctx,
-                    List<String> childrenNames) {
-                ZVNodeImpl parent = nodes.get(path);
-                Stat stat = new Stat();
+        ChildrenCallback cb = (rc, path1, ctx, childrenNames) -> {
+            ZVNodeImpl parent = nodes.get(path1);
+            Stat stat = new Stat();
+            try {
+                parent.setStat(zk.exists(path1, false));
+            } catch (Exception ignore) {
+                ignore.printStackTrace();
+            }
+            for (String childName : childrenNames) {
                 try {
-                    parent.setStat(zk.exists(path, false));
-                } catch (Exception ignore) {
-                    ignore.printStackTrace();
-                }
-                for (String childName : childrenNames) {
-                    try {
-                        String childPath = getFullPath(path, childName);
-                        ZVNodeImpl child = nodes.get(childPath);
-                        if (child != null) {
-                            if (!child.exists()) {
-                                child.setData(zk.getData(childPath, watcher,
-                                        stat));
-                                child.setStat(stat);
-                                child.setExists(true);
-                                children.put(child, new ArrayList<ZVNodeImpl>());
-                                children.get(parent).add(child);
-                                fireNodeCreated(child);
-                                populateChildren(childPath);
-                            }
-                        } else {
-                            child = new ZVNodeImpl(childPath, zk.getData(
-                                    childPath, watcher, stat));
+                    String childPath = getFullPath(path1, childName);
+                    ZVNodeImpl child = nodes.get(childPath);
+                    if (child != null) {
+                        if (!child.exists()) {
+                            child.setData(zk.getData(childPath, watcher,
+                                    stat));
                             child.setStat(stat);
-                            nodes.put(childPath, child);
-                            children.put(child, new ArrayList<ZVNodeImpl>());
+                            child.setExists(true);
+                            children.put(child, new ArrayList<>());
                             children.get(parent).add(child);
                             fireNodeCreated(child);
                             populateChildren(childPath);
                         }
-                    } catch (Exception ignore) {
-                        ignore.printStackTrace();
+                    } else {
+                        child = new ZVNodeImpl(childPath, zk.getData(
+                                childPath, watcher, stat));
+                        child.setStat(stat);
+                        nodes.put(childPath, child);
+                        children.put(child, new ArrayList<>());
+                        children.get(parent).add(child);
+                        fireNodeCreated(child);
+                        populateChildren(childPath);
                     }
+                } catch (Exception ignore) {
+                    ignore.printStackTrace();
                 }
             }
         };
@@ -281,10 +260,6 @@ public class ZVModelImpl implements ZVModel {
         return ("/".equals(parentPath) ? "/" : (parentPath + "/")) + childName;
     }
 
-    /**
-     * @param path
-     * @return
-     */
     private String getParent(String path) {
         if ("/".equals(path)) {
             return null;
@@ -301,64 +276,50 @@ public class ZVModelImpl implements ZVModel {
     @Override
     public void addNode(String path, byte[] data) {
         if ((nodes.get(path) != null) && nodes.get(path).exists()) {
-            throw new IllegalStateException("Node '" + path
-                    + "' already exists");
+            throw new IllegalStateException("Node '" + path + "' already exists");
         }
 
-        if ((nodes.get(getParent(path)) == null)
-                || !nodes.get(getParent(path)).exists()) {
-            throw new IllegalArgumentException("Node '" + path
-                    + "' can't be created. Its parent node doesn't exist");
+        if ((nodes.get(getParent(path)) == null) || !nodes.get(getParent(path)).exists()) {
+            throw new IllegalArgumentException("Node '" + path + "' can't be created. Its parent node doesn't exist");
         }
 
         try {
-            zk.create(path, data,
-                    org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE,
-                    CreateMode.PERSISTENT);
-        } catch (KeeperException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            zk.create(path, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        } catch (KeeperException | InterruptedException e) {
+            log.error("Error adding node.", e);
         }
     }
 
     @Override
     public void deleteNode(ZVNode node) {
         String path = node.getPath();
-        System.out.println("Delete requested on node " + path);
+        log.info("Delete requested on node " + path);
         PathUtils.validatePath(path);
         try {
             // Checks if the node has children
             List<String> childNodes = zk.getChildren(path, false);
             if (childNodes != null && childNodes.size() > 0) {
                 // if the node has children, delete them recursively
-                for (Iterator<String> iterator = childNodes.iterator(); iterator
-                        .hasNext();) {
-                    String nodeName = (String) iterator.next();
-                    String childPath = path + (path.endsWith("/") ? "" : "/")
-                            + nodeName;
+                for (String nodeName : childNodes) {
+                    String childPath = path + (path.endsWith("/") ? "" : "/") + nodeName;
                     deleteNode(getNode(childPath));
                 }
             }
             // finally, delete the node itself
             Stat stat = zk.exists(path, false);
-            System.out.println("Deleting node " + path + "(stat =  " + stat);
+            log.info("Deleting node {} (stat = {})", path, stat);
             zk.delete(path, -1);
             Stat stat2 = zk.exists(path, false);
-            System.out.println("Deleting node " + path + "(stat = " + stat2);
-        } catch (KeeperException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            log.info("Deleting node {} (stat = {})", path, stat2);
+        } catch (KeeperException | InterruptedException e) {
+            log.error("Error deleting node.", e);
         }
     }
 
     @Override
     public void deleteNodes(ZVNode[] nodes) {
-        for (int i = 0; i < nodes.length; i++) {
-            deleteNode(nodes[i]);
+        for (ZVNode node : nodes) {
+            deleteNode(node);
         }
 
     }
@@ -368,10 +329,8 @@ public class ZVModelImpl implements ZVModel {
         try {
             Stat stat = zk.setData(path, data, -1);
             nodes.get(path).setStat(stat);
-        } catch (KeeperException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (KeeperException | InterruptedException e) {
+            log.error("Error updating data.", e);
         }
     }
 
@@ -387,13 +346,7 @@ public class ZVModelImpl implements ZVModel {
 
     @Override
     public List<ZVNode> getChildren(ZVNode parent) {
-        List<ZVNode> nodes = new ArrayList<ZVNode>();
-        for (ZVNode node : children.get(parent)) {
-            if (node.exists()) {
-                nodes.add(node);
-            }
-        }
-        return nodes;
+        return children.get(parent).stream().filter(ZVNodeImpl::exists).collect(Collectors.toList());
     }
 
     @Override
@@ -425,8 +378,7 @@ public class ZVModelImpl implements ZVModel {
         // those that are interested in this event
         for (int i = listeners.length - 2; i >= 0; i -= 2) {
             if (listeners[i] == ZVModelListener.class) {
-                ((ZVModelListener) listeners[i + 1]).nodeDeleted(oldNode,
-                        oldIndex);
+                ((ZVModelListener) listeners[i + 1]).nodeDeleted(oldNode, oldIndex);
             }
         }
     }

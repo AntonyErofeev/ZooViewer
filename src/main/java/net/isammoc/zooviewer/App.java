@@ -42,6 +42,9 @@ public class App {
     private static Logger log = LoggerFactory.getLogger(App.class);
 
     public static void main(String[] args) throws IOException {
+
+
+
         String zkHost;
         Set<String> savedHosts = getSavedHosts();
         if (args.length > 0) {
@@ -85,7 +88,7 @@ public class App {
 
         tree.addTreeSelectionListener(e -> {
             // Create the array of selections
-            TreePath[] selPaths = e.getPaths();
+            TreePath[] selPaths = tree.getSelectionPaths();
             if (selPaths == null) {
                 return;
             }
@@ -100,6 +103,12 @@ public class App {
             @Override
             public void windowClosing(WindowEvent e) {
                 jfEditor.dispose();
+                try {
+                    model.close();
+                } catch (InterruptedException e1) {
+                    log.error("=====> Interrupted on attempt to close zk connection.", e);
+                }
+                System.exit(0); //There are some threads left even after zk close. So just exit.
             }
         });
 
@@ -126,7 +135,7 @@ public class App {
                         text += "=" + new String(data);
                     }
                     ((JLabel) comp).setText(text);
-                    ((JLabel) comp).validate();
+                    comp.validate();
                 }
                 return comp;
             }

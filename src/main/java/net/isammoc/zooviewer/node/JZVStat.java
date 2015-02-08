@@ -24,10 +24,14 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JZVStat extends JPanel {
     /** */
     private static final long serialVersionUID = 1L;
+
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private final JStatView aversion = new JStatView("aversion :");
     private final JStatView ctime = new JStatView("ctime :");
@@ -41,8 +45,7 @@ public class JZVStat extends JPanel {
     private final JStatView pzxid = new JStatView("pzxid :");
     private final JStatView version = new JStatView("version :");
 
-    private final DateFormat DATE_FORMAT = DateFormat.getDateTimeInstance(
-            DateFormat.SHORT, DateFormat.SHORT, this.getLocale());
+    private final DateFormat DATE_FORMAT = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, this.getLocale());
 
     private class JStatView extends JPanel {
         /** */
@@ -79,27 +82,9 @@ public class JZVStat extends JPanel {
         this.add(statsPane);
     }
 
-    private JPanel createStatPane(JStatView sView1, JStatView sView2,
-            JStatView sView3, JStatView sView4) {
-        JPanel statsPane = new JPanel(new GridLayout(3, 1));
-        if (sView1 != null) {
-            statsPane.add(sView1);
-        }
-        if (sView2 != null) {
-            statsPane.add(sView2);
-        }
-        if (sView3 != null) {
-            statsPane.add(sView3);
-        }
-        if (sView4 != null) {
-            statsPane.add(sView4);
-        }
-        return statsPane;
-    }
-
     public void setStat(Stat stat) {
+        log.info("=====> Stat is: {}", stat);
         if (stat == null) {
-            System.out.println("stat null");
             this.aversion.setValue("");
             this.ctime.setValue("");
             this.cversion.setValue("");
@@ -112,18 +97,13 @@ public class JZVStat extends JPanel {
             this.pzxid.setValue("");
             this.version.setValue("");
         } else {
-            System.out.println("stat = " + stat);
-
             this.aversion.setValue(String.valueOf(stat.getAversion()));
-            this.ctime.setValue(this.DATE_FORMAT.format(new Date(stat
-                    .getCtime())));
+            this.ctime.setValue(this.DATE_FORMAT.format(new Date(stat.getCtime())));
             this.cversion.setValue(String.valueOf(stat.getCversion()));
             this.czxid.setValue(String.valueOf(stat.getCzxid()));
             this.dataLength.setValue(String.valueOf(stat.getDataLength()));
-            this.ephemeralOwner.setValue(String.valueOf(stat
-                    .getEphemeralOwner()));
-            this.mtime.setValue(this.DATE_FORMAT.format(new Date(stat
-                    .getMtime())));
+            this.ephemeralOwner.setValue(String.valueOf(stat.getEphemeralOwner()));
+            this.mtime.setValue(this.DATE_FORMAT.format(new Date(stat.getMtime())));
             this.mzxid.setValue(String.valueOf(stat.getMzxid()));
             this.numChildren.setValue(String.valueOf(stat.getNumChildren()));
             this.pzxid.setValue(String.valueOf(stat.getPzxid()));
