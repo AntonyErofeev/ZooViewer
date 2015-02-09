@@ -14,6 +14,9 @@
  */
 package net.isammoc.zooviewer.node;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.isammoc.zooviewer.model.ZVModel;
 import net.isammoc.zooviewer.model.ZVModelListener;
 import org.slf4j.Logger;
@@ -30,6 +33,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
 import java.util.ResourceBundle;
 
 /**
@@ -40,6 +44,8 @@ import java.util.ResourceBundle;
 public class JZVNode extends JPanel {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     private static final Border BEVEL_LOWERED_BORDER = BorderFactory.createBevelBorder(BevelBorder.LOWERED);
 
@@ -92,9 +98,13 @@ public class JZVNode extends JPanel {
 
         // Components
         this.taChildData.setBorder(BEVEL_LOWERED_BORDER);
+        this.taChildData.setRows(2);
+        this.taChildData.setFont(new Font("Sans-Serif", Font.PLAIN, 14));
+        this.taChildData.setAutoscrolls(true);
+
         this.taUpdate.setBorder(BEVEL_LOWERED_BORDER);
         this.taUpdate.setRows(2);
-        this.taChildData.setRows(2);
+        this.taUpdate.setFont(new Font("Sans-Serif", Font.PLAIN, 14));
 
         // Actions
         this.jbDelete.setAction(getDeleteAction());
@@ -452,7 +462,23 @@ public class JZVNode extends JPanel {
             this.titleBorder.setTitle(this.nodes[0].getPath());
             this.jzvStat.setStat(this.nodes[0].getStat());
             byte[] data = this.nodes[0].getData();
-            this.taUpdate.setText(new String(data == null ? "null".getBytes() : data));
+            if (data == null || data.length == 0) {
+                this.taUpdate.setText("No data in node.");
+            } else {
+                String text = new String(data).trim();
+                if (text.startsWith("{")) { //probably node data is json. Lets format it
+                    try {
+                        JsonNode tree = mapper.readTree(text);
+                        this.taUpdate.setText(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(tree));
+                    } catch (Exception ex) {
+                        log.warn("=====> String starts with { symbol but cannot be parsed as json. Using plain. Error: {}", ex.getMessage());
+                        this.taUpdate.setText(text);
+                    }
+                } else {
+                    this.taUpdate.setText(text);
+                }
+            }
+
             this.taChildData.setText("");
             this.jbUpdate.setEnabled( !this.taUpdate.getText().trim().equals("") );
             this.jbNewChild.setEnabled( !this.jtfChildName.getText().trim().equals("") );
